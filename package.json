@@ -1,0 +1,30 @@
+{
+  "name": "@emvault/jade",
+  "version": "0.1.0",
+  "description": "Dependency-free Blockstream Jade WebSerial (USB) driver for the browser — Bitcoin PSBT and Liquid/Elements PSET signing over Jade's CBOR-RPC protocol.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src/index.js",
+    "src/jade-rpc.js",
+    "src/cbor.js",
+    "README.md"
+  ],
+  "keywords": [
+    "bitcoin",
+    "liquid",
+    "elements",
+    "jade",
+    "blockstream",
+    "webserial",
+    "hardware-wallet",
+    "psbt",
+    "pset"
+  ],
+  "sideEffects": false
+}
