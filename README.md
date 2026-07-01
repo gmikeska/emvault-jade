@@ -83,6 +83,20 @@ Jade firmware expects specific identifiers:
 | Bitcoin testnet/signet | `testnet` |
 | Bitcoin regtest | `localtest` |
 
+## Liquid / Elements support (pair with `lwk_wasm`)
+
+`@emvault/jade` is Bitcoin-only. To add **Liquid/Elements** (PSET signing and
+Liquid onboarding) on the same page, pair it with
+[`lwk_wasm`](https://www.npmjs.com/package/lwk_wasm) (built with the `serial`
+feature). Two companion guides in this repo cover that:
+
+- **[BUILD_LWK_FROM_SOURCE.md](https://github.com/gmikeska/emvault-jade/blob/master/BUILD_LWK_FROM_SOURCE.md)**
+  — how to **build and install `lwk_wasm`** yourself (Rust + `wasm-pack`
+  toolchain, pinned commit, vendoring the output into your app), for Elements support. (As of June 1st, 2026, the version of lwk_wasm on npm doesn't come with USB support so Jade functionality requres a compiled library)
+- **[WEBSERIAL_PORT_LIFECYCLE.md](https://github.com/gmikeska/emvault-jade/blob/master/WEBSERIAL_PORT_LIFECYCLE.md)**
+  — how to use **`@emvault/jade` alongside `lwk_wasm`** for Elements support:
+  managing the shared Web Serial port between the two drivers (single-session reuse, and the page reload needed when switching Liquid ↔ Bitcoin).
+
 ## Layout
 
 ```

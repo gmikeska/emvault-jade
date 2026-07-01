@@ -1,5 +1,5 @@
 {
-  "name": "@emvault/jade",
+  "name": "@emeraldlabs/emvault-jade",
   "version": "0.1.0",
   "description": "Dependency-free Blockstream Jade WebSerial (USB) driver for the browser — Bitcoin PSBT signing and device onboarding over Jade's CBOR-RPC protocol.",
   "license": "MIT OR Apache-2.0",
