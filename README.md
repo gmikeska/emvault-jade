@@ -9,10 +9,6 @@ driver covers the full device workflow for **both Bitcoin (PSBT) and
 Liquid/Elements (PSET)**, which is the connection method that unlocks Liquid
 *and* Bitcoin mainnet alike.
 
-Extracted from the proven `JadeRpc` implementation built in
-`test-app-xpub` (`feature/jade-elements-integration`), now standalone so any
-EmVault app can embed it.
-
 ## Requirements
 
 - A **Chromium-based desktop browser** (Web Serial API: Chrome/Edge/Brave/Arc).
