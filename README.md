@@ -1,4 +1,4 @@
-# @emvault/jade
+# @emeraldlabs/emvault-jade
 
 A **dependency-free Blockstream Jade driver for the browser**, speaking Jade's
 CBOR-RPC protocol directly over the **Web Serial API** (USB).
@@ -18,7 +18,7 @@ fingerprint, multisig registration) over a single USB connection.
 ## Install
 
 ```sh
-npm install @emvault/jade
+npm install @emeraldlabs/emvault-jade
 ```
 
 Zero runtime dependencies; ships as ES modules with TypeScript types. Runs in the
@@ -27,7 +27,7 @@ browser (Web Serial). No build step required.
 ## Usage
 
 ```js
-import { JadeRpc } from "@emvault/jade";
+import { JadeRpc } from "@emeraldlabs/emvault-jade";
 
 const jade = await JadeRpc.fromSerial();          // call inside a click handler
 await jade.unlock("testnet");                     // PIN on device → pinserver auth
@@ -85,7 +85,7 @@ Jade firmware expects specific identifiers:
 
 ## Liquid / Elements support (pair with `lwk_wasm`)
 
-`@emvault/jade` is Bitcoin-only. To add **Liquid/Elements** (PSET signing and
+`@emeraldlabs/emvault-jade` is Bitcoin-only. To add **Liquid/Elements** (PSET signing and
 Liquid onboarding) on the same page, pair it with
 [`lwk_wasm`](https://www.npmjs.com/package/lwk_wasm) (built with the `serial`
 feature). Two companion guides in this repo cover that:
@@ -94,7 +94,7 @@ feature). Two companion guides in this repo cover that:
   — how to **build and install `lwk_wasm`** yourself (Rust + `wasm-pack`
   toolchain, pinned commit, vendoring the output into your app), for Elements support. (As of June 1st, 2026, the version of lwk_wasm on npm doesn't come with USB support so Jade functionality requres a compiled library)
 - **[WEBSERIAL_PORT_LIFECYCLE.md](https://github.com/gmikeska/emvault-jade/blob/master/WEBSERIAL_PORT_LIFECYCLE.md)**
-  — how to use **`@emvault/jade` alongside `lwk_wasm`** for Elements support:
+  — how to use **`@emeraldlabs/emvault-jade` alongside `lwk_wasm`** for Elements support:
   managing the shared Web Serial port between the two drivers (single-session reuse, and the page reload needed when switching Liquid ↔ Bitcoin).
 
 ## Layout

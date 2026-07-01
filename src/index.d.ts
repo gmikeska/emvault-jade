@@ -1,4 +1,4 @@
-// Type declarations for @emvault/jade — a dependency-free Blockstream Jade
+// Type declarations for @emeraldlabs/emvault-jade — a dependency-free Blockstream Jade
 // WebSerial (USB) driver for the browser. Bitcoin PSBT signing + onboarding.
 
 /** Canonical Jade Bitcoin network identifiers (see `NETWORKS`). */
