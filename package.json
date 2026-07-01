@@ -5,6 +5,9 @@
   "license": "MIT OR Apache-2.0",
   "author": "Greg Mikeska (https://github.com/gmikeska)",
   "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
   "main": "src/index.js",
   "module": "src/index.js",
   "exports": {
