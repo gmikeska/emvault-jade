@@ -50,6 +50,15 @@ test("base58CheckDecode rejects invalid base58 characters", () => {
   assert.throws(() => base58CheckDecode("0OIl_not_base58"), /invalid character/);
 });
 
+test("base58CheckDecode rejects a corrupted checksum (SHA-256d verified)", () => {
+  const tpub =
+    "tpubD6NzVbkrYhZ4Was8nwnZi7eiWUNJq2LFpPSCMQLioUfUtT1e72GkRbmVeRAZc26j5MRUz2hRLsaVHJfs6L7ppNfLUrm9btQTuaEsLrT7D87";
+  // Flip one interior char to a different valid base58 char → checksum fails.
+  const i = 20;
+  const corrupted = tpub.slice(0, i) + (tpub[i] === "z" ? "y" : "z") + tpub.slice(i + 1);
+  assert.throws(() => base58CheckDecode(corrupted), /checksum mismatch/);
+});
+
 test("bytesToHex / hexToBytes round-trip", () => {
   const bytes = new Uint8Array([0, 1, 15, 16, 255, 128]);
   assert.equal(bytesToHex(bytes), "00010f10ff80");
