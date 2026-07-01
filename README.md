@@ -104,5 +104,3 @@ src/index.js     — public re-exports
 src/jade-rpc.js  — the JadeRpc CBOR-RPC WebSerial driver (no dependencies)
 src/cbor.js      — minimal CBOR encode/decode
 ```
-
-No build step: ship the ES modules as-is, or bundle with your app.
