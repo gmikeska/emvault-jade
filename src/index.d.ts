@@ -11,6 +11,9 @@ export const NETWORKS: readonly Network[];
 export type Bip32Path = string | number[];
 
 export class JadeRpc {
+  /** Opt-in diagnostic logging (default `false`). Set `true` to troubleshoot. */
+  static debug: boolean;
+
   /**
    * Open a Web Serial port and wrap it in a `JadeRpc`. Surfaces the browser's
    * port picker, so it must be called from within a user gesture (a click/tap

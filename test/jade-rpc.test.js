@@ -130,3 +130,13 @@ test("close() is idempotent", async () => {
   await jade.close();
   await jade.close(); // must not throw
 });
+
+test("close() rejects an in-flight call instead of hanging", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  // No onWrite handler → the device never replies; the call stays pending.
+  const pending = jade.getXpub("testnet", "m/0");
+  await jade.close();
+  await assert.rejects(() => pending, /port closed/);
+});
+

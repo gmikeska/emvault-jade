@@ -15,6 +15,15 @@ fingerprint, multisig registration) over a single USB connection.
 - A Blockstream **Jade** (v1, Jade Plus, or a DIY ESP32 build — USB-UART
   filters for CP210x / ESP32-S3 / CH9102 / CH340 are pre-registered).
 
+## Install
+
+```sh
+npm install @emvault/jade
+```
+
+Zero runtime dependencies; ships as ES modules with TypeScript types. Runs in the
+browser (Web Serial). No build step required.
+
 ## Usage
 
 ```js
@@ -60,6 +69,9 @@ await jade.close();
 Also exported: `NETWORKS` (valid network strings), and helpers
 `pathToU32Array`, `base58CheckDecode`, `bytesToHex`, `hexToBytes`,
 `base64ToBytes`, `bytesToBase64`.
+
+The driver is silent by default. For troubleshooting, set `JadeRpc.debug = true`
+to surface read-loop/decode diagnostics on the console.
 
 ## Network names
 
