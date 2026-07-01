@@ -10,17 +10,25 @@
   },
   "main": "src/index.js",
   "module": "src/index.js",
+  "types": "src/index.d.ts",
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
   "files": [
     "src/index.js",
+    "src/index.d.ts",
     "src/jade-rpc.js",
     "src/cbor.js",
     "README.md",
     "LICENSE-MIT",
     "LICENSE-APACHE"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gmikeska/emvault-jade.git"

@@ -38,6 +38,13 @@ await jade.close();
 > allows from a **user gesture** — invoke it from a click/tap handler, not on
 > page load.
 
+> **Pinserver / CORS:** `unlock()` performs Jade's PIN handshake by POSTing from
+> the browser to Blockstream's pinserver (`https://j8d.io` or
+> `jadepin.blockstream.com`). Your app's origin must be allowed to reach it — if
+> a browser CORS policy or network filter blocks the request, `unlock()` rejects
+> with a clear *"could not reach the pinserver … (network error or CORS block)"*
+> message (distinct from a pinserver that answers with an error status).
+
 ## API
 
 | Method | Purpose |
