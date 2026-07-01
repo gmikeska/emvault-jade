@@ -3,11 +3,10 @@
 A **dependency-free Blockstream Jade driver for the browser**, speaking Jade's
 CBOR-RPC protocol directly over the **Web Serial API** (USB).
 
-It exists because `lwk_wasm`'s `Jade` only exposes `sign(pset)` for Liquid — it
-has no Bitcoin `sign_psbt` entry point and no xpub/registration surface. This
-driver covers the full device workflow for **both Bitcoin (PSBT) and
-Liquid/Elements (PSET)**, which is the connection method that unlocks Liquid
-*and* Bitcoin mainnet alike.
+It exists because `lwk_wasm`'s `Jade` has no Bitcoin `sign_psbt` entry point and
+no xpub / fingerprint / multisig-registration surface. This driver fills that
+gap: **Bitcoin PSBT signing** plus full **device onboarding** (xpub, master
+fingerprint, multisig registration) over a single USB connection.
 
 ## Requirements
 
@@ -21,22 +20,23 @@ Liquid/Elements (PSET)**, which is the connection method that unlocks Liquid
 ```js
 import { JadeRpc } from "@emvault/jade";
 
-const jade = await JadeRpc.fromSerial();          // prompts for the serial port
-await jade.unlock("testnet-liquid");              // PIN on device → pinserver auth
+const jade = await JadeRpc.fromSerial();          // call inside a click handler
+await jade.unlock("testnet");                     // PIN on device → pinserver auth
 
 // Onboarding
-const fp   = await jade.getMasterFingerprintHex("testnet-liquid");
-const xpub = await jade.getXpub("testnet-liquid", "m/84'/1'/0'");
-
-// Liquid signing
-await jade.registerLiquidMultisig("testnet-liquid", "astL1234", descriptor);
-const signedPset = await jade.signPset("testnet-liquid", psetBytes); // Uint8Array
+const fp   = await jade.getMasterFingerprintHex("testnet");
+const xpub = await jade.getXpub("testnet", "m/84'/1'/0'");
+await jade.registerMultisig("testnet", "ast1234", multisigFileText);
 
 // Bitcoin signing
-const signedPsbt = await jade.signPsbt("testnet", psbtBytes);
+const signedPsbt = await jade.signPsbt("testnet", psbtBytes); // Uint8Array
 
 await jade.close();
 ```
+
+> `fromSerial()` calls `navigator.serial.requestPort()`, which the browser only
+> allows from a **user gesture** — invoke it from a click/tap handler, not on
+> page load.
 
 ## API
 
@@ -47,13 +47,12 @@ await jade.close();
 | `getXpub(network, path)` | XPUB at a derivation path (`"m/84'/1'/0'"` or a `u32[]`). |
 | `getMasterFingerprintHex(network)` | Master key fingerprint (hex). |
 | `registerMultisig(network, name, descriptor)` | Register a Bitcoin multisig wallet. |
-| `registerLiquidMultisig(network, name, descriptor)` | Register a Liquid multisig (with `master_blinding_key`). |
 | `signPsbt(network, psbtBytes)` | Sign a Bitcoin PSBT → signed PSBT bytes. |
-| `signPset(network, psetBytes)` | Sign a Liquid PSET → signed PSET bytes. |
 | `close()` | Release the serial port (idempotent). |
 
-Helpers also exported: `pathToU32Array`, `base58CheckDecode`, `bytesToHex`,
-`hexToBytes`, `base64ToBytes`, `bytesToBase64`.
+Also exported: `NETWORKS` (valid network strings), and helpers
+`pathToU32Array`, `base58CheckDecode`, `bytesToHex`, `hexToBytes`,
+`base64ToBytes`, `bytesToBase64`.
 
 ## Network names
 
@@ -64,9 +63,6 @@ Jade firmware expects specific identifiers:
 | Bitcoin mainnet | `mainnet` |
 | Bitcoin testnet/signet | `testnet` |
 | Bitcoin regtest | `localtest` |
-| Liquid mainnet | `liquid` |
-| **Liquid testnet** | `testnet-liquid` |
-| Elements regtest | `localtest-liquid` |
 
 ## Layout
 
@@ -77,7 +73,3 @@ src/cbor.js      — minimal CBOR encode/decode
 ```
 
 No build step: ship the ES modules as-is, or bundle with your app.
-
-> ⚠️ Liquid (PSET) is **only** available over USB/Serial — not over Jade's QR
-> air-gap mode (which is Bitcoin-only). That's the whole reason this driver
-> exists.

@@ -1,8 +1,8 @@
-// Blockstream Jade WebSerial driver for Bitcoin (and Liquid) workflows.
+// Blockstream Jade WebSerial driver for Bitcoin workflows.
 //
-// `lwk_wasm`'s `Jade` only exposes `sign(pset)` for Liquid; it has no
-// Bitcoin `sign_psbt` entry point. For test-app-xpub's Bitcoin federations
-// we therefore drive Jade's CBOR-RPC protocol directly over WebSerial.
+// Drives Jade's CBOR-RPC protocol directly over WebSerial to onboard the
+// device and sign Bitcoin PSBTs — the xpub / fingerprint / multisig
+// registration / `sign_psbt` surface needed for Bitcoin federations.
 //
 // Wire format: CBOR objects sent back-to-back over the serial port at
 // 115200 baud. Each request carries a unique `id`; replies echo it. See
@@ -11,11 +11,11 @@
 // Public surface:
 //
 //   const jade = await JadeRpc.fromSerial();
-//   await jade.unlock("regtest");                    // auth handshake.
-//   const xpub = await jade.getXpub("regtest", "m/48'/1'/0'/2'");
-//   const fp   = await jade.getMasterFingerprintHex();
-//   await jade.registerMultisig("regtest", "ast123", multisigFileText);
-//   const signedPsbtB64 = await jade.signPsbt("regtest", basePsbtB64);
+//   await jade.unlock("localtest");                  // auth handshake.
+//   const xpub = await jade.getXpub("localtest", "m/48'/1'/0'/2'");
+//   const fp   = await jade.getMasterFingerprintHex("localtest");
+//   await jade.registerMultisig("localtest", "ast123", multisigFileText);
+//   const signedPsbt = await jade.signPsbt("localtest", basePsbtBytes);
 //   await jade.close();
 //
 // All public methods that touch the device are async. After `unlock`
@@ -45,6 +45,25 @@ const PINSERVER_URL_PREFIXES = [
 // BIP-32 hardened-derivation mask. JS bitwise ops are 32-bit signed, so
 // we reach for the literal value instead of `(1 << 31)`.
 const HARDENED_MASK = 0x80000000;
+
+// Canonical Jade Bitcoin network identifiers. Jade firmware rejects anything
+// else, so we validate up front and fail with a clear message rather than
+// letting the device return an opaque error. Note: Bitcoin regtest is
+// `localtest` (NOT `regtest`) — the name most people get wrong.
+export const NETWORKS = Object.freeze([
+    "mainnet", // Bitcoin mainnet
+    "testnet", // Bitcoin testnet (also used for signet)
+    "localtest", // Bitcoin regtest
+]);
+
+function assertNetwork(network) {
+    if (!NETWORKS.includes(network)) {
+        throw new Error(
+            `Jade: unknown network ${JSON.stringify(network)}. ` +
+                `Valid values: ${NETWORKS.join(", ")}.`,
+        );
+    }
+}
 
 export class JadeRpc {
     /// Open a Web Serial port and wrap it in a `JadeRpc`. The user agent
@@ -201,9 +220,10 @@ export class JadeRpc {
     /// pinserver. On an already-authenticated session (rare in browsers
     /// since closing the port locks Jade) it returns immediately.
     ///
-    /// @param {string} network "mainnet" | "testnet" | "regtest" | "liquid"
-    ///                         | "liquidtestnet" | "localtest-liquid"
+    /// @param {string} network one of `NETWORKS`: "mainnet" | "testnet" |
+    ///                         "localtest"
     async unlock(network) {
+        assertNetwork(network);
         let reply = await this._call("auth_user", {
             network,
             epoch: Math.floor(Date.now() / 1000),
@@ -262,6 +282,7 @@ export class JadeRpc {
     /// Fetch the xpub at `path` (a BIP-32 path string or array). `network`
     /// must match what `unlock` was called with.
     async getXpub(network, path) {
+        assertNetwork(network);
         const u32Path = pathToU32Array(path);
         const reply = await this._call("get_xpub", {
             network,
@@ -286,24 +307,6 @@ export class JadeRpc {
         return bytesToHex(fp);
     }
 
-    /// Fetch Jade's SLIP-77 **master blinding key** (32 bytes) — needed to
-    /// build a single-sig confidential descriptor
-    /// `ct(slip77(<hex>), elwpkh(...))` so a Liquid PSET can be blinded such
-    /// that Jade can unblind and sign it. The user confirms the export on the
-    /// device. Returns a `Uint8Array(32)`.
-    async getMasterBlindingKey() {
-        const reply = await this._call("get_master_blinding_key", {});
-        const key = reply.result;
-        if (!(key instanceof Uint8Array) || key.length !== 32) {
-            throw new Error(
-                `Jade: expected 32-byte master blinding key, got ${
-                    key instanceof Uint8Array ? `${key.length} bytes` : typeof key
-                }`,
-            );
-        }
-        return key;
-    }
-
     /// Register a multisig wallet on the device. Accepts either the
     /// "multisig_file" form (a Coldcard/Sparrow-style text export, as a
     /// `string`) or the "descriptor object" form (a plain JS object that
@@ -316,6 +319,7 @@ export class JadeRpc {
     /// @param {string} name 1..15 ASCII chars.
     /// @param {string | object} fileOrDescriptor
     async registerMultisig(network, name, fileOrDescriptor) {
+        assertNetwork(network);
         if (typeof name !== "string" || name.length === 0 || name.length >= 16) {
             throw new Error(
                 `Jade: multisig name must be 1..15 ASCII chars (got ${JSON.stringify(name)})`,
@@ -344,57 +348,8 @@ export class JadeRpc {
         return this._signTxLike("sign_psbt", network, psbtBytes, "psbt");
     }
 
-    /// Ask Jade to sign a Liquid PSET. Mirrors `signPsbt` but uses Jade's
-    /// `sign_pset` RPC method so the device knows it's looking at Elements
-    /// transaction bytes (different magic, different sighash logic).
-    ///
-    /// `psetBytes` is the binary PSET (`Uint8Array`); the reply is the
-    /// signed PSET as `Uint8Array`. Same `seqlen`/`get_extended_data`
-    /// chunking applies — Liquid PSETs are usually larger than Bitcoin
-    /// PSBTs because of the rangeproofs and asset commitments.
-    async signPset(network, psetBytes) {
-        return this._signTxLike("sign_pset", network, psetBytes, "pset");
-    }
-
-    /// Register a Liquid multisig wallet on the device. Same shape as
-    /// `registerMultisig` but with the SLIP-77 master blinding key bound
-    /// to the descriptor — Jade needs it to recreate the per-output
-    /// blinding factors when validating PSET signing requests. The user
-    /// must physically confirm the registration on the Jade screen.
-    /// Idempotent under the same `(name, content)` pair.
-    ///
-    /// @param {string} network "liquid" | "liquidtestnet" | "localtest-liquid"
-    /// @param {string} name 1..15 ASCII chars.
-    /// @param {object} descriptor Jade descriptor object (must include
-    ///                            `variant`, `sorted`, `threshold`,
-    ///                            `signers`, and `master_blinding_key`).
-    async registerLiquidMultisig(network, name, descriptor) {
-        if (typeof name !== "string" || name.length === 0 || name.length >= 16) {
-            throw new Error(
-                `Jade: multisig name must be 1..15 ASCII chars (got ${JSON.stringify(name)})`,
-            );
-        }
-        if (!descriptor || typeof descriptor !== "object") {
-            throw new TypeError("registerLiquidMultisig: descriptor must be an object");
-        }
-        if (!(descriptor.master_blinding_key instanceof Uint8Array)) {
-            throw new TypeError(
-                "registerLiquidMultisig: descriptor.master_blinding_key must be a 32-byte Uint8Array",
-            );
-        }
-        if (descriptor.master_blinding_key.length !== 32) {
-            throw new RangeError(
-                `registerLiquidMultisig: master_blinding_key must be 32 bytes (got ${descriptor.master_blinding_key.length})`,
-            );
-        }
-        await this._call("register_multisig", {
-            network,
-            multisig_name: name,
-            descriptor,
-        });
-    }
-
     async _signTxLike(method, network, txBytes, paramName) {
+        assertNetwork(network);
         if (!(txBytes instanceof Uint8Array)) {
             throw new TypeError(`${method}: ${paramName}Bytes must be Uint8Array`);
         }
