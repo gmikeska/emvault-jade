@@ -41,18 +41,69 @@ export class JadeRpc {
    * Register a Bitcoin multisig wallet on the device. Accepts a Coldcard/
    * Sparrow-style multisig-file `string` or a Jade descriptor `object`. The
    * user confirms on the Jade screen. `name` must be 1..15 ASCII chars.
+   *
+   * Refuses to overwrite an existing same-name registration unless
+   * `{ allowOverwrite: true }` is passed — a hostile host can otherwise
+   * silently swap the descriptor. Prefer register-once + `getRegisteredMultisig`.
    */
   registerMultisig(
     network: Network,
     name: string,
     fileOrDescriptor: string | object,
+    options?: { allowOverwrite?: boolean },
   ): Promise<void>;
+
+  /**
+   * List multisig wallets registered on the device, keyed by name. Values are
+   * Jade summary records. Device-global, not network-scoped.
+   */
+  getRegisteredMultisigs(): Promise<Record<string, RegisteredMultisigSummary>>;
+
+  /**
+   * Read back the full registration for `name` — descriptor plus per-cosigner
+   * `signers` — so a caller can verify what the device holds against an
+   * expected federation descriptor. `name` must be 1..15 ASCII chars.
+   */
+  getRegisteredMultisig(name: string): Promise<RegisteredMultisigDetails>;
 
   /** Sign a Bitcoin PSBT (`Uint8Array` in → signed `Uint8Array` out). */
   signPsbt(network: Network, psbtBytes: Uint8Array): Promise<Uint8Array>;
 
   /** Release the WebSerial port. Idempotent. */
   close(): Promise<void>;
+}
+
+/** One cosigner in a registered multisig descriptor (read-back). */
+export interface MultisigSigner {
+  /** Master fingerprint bytes. */
+  fingerprint: Uint8Array;
+  /** Derivation from the master node (m) to the xpub, as u32 indices. */
+  derivation: number[];
+  /** The cosigner xpub. */
+  xpub: string;
+  /** Derivation from the xpub to the signer, as u32 indices. */
+  path: number[];
+}
+
+/** Jade's per-name summary from `getRegisteredMultisigs`. */
+export interface RegisteredMultisigSummary {
+  variant: string;
+  sorted: boolean;
+  threshold: number;
+  num_signers: number;
+  master_blinding_key?: Uint8Array;
+}
+
+/** Full descriptor read back by `getRegisteredMultisig`. */
+export interface RegisteredMultisigDetails {
+  multisig_name: string;
+  descriptor: {
+    variant: string;
+    sorted: boolean;
+    threshold: number;
+    master_blinding_key?: Uint8Array;
+    signers: MultisigSigner[];
+  };
 }
 
 /** Parse a BIP-32 path into a flat array of u32 indices (hardened bit set). */

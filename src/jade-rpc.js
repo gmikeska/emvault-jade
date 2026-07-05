@@ -65,6 +65,16 @@ function assertNetwork(network) {
     }
 }
 
+// Jade registration names are 1..15 ASCII chars (firmware caps at 16 incl. the
+// NUL terminator). Shared by register/read-back so the constraint lives once.
+function assertMultisigName(name) {
+    if (typeof name !== "string" || name.length === 0 || name.length >= 16) {
+        throw new Error(
+            `Jade: multisig name must be 1..15 ASCII chars (got ${JSON.stringify(name)})`,
+        );
+    }
+}
+
 export class JadeRpc {
     /**
      * Opt-in diagnostic logging. Off by default so the library is silent in
@@ -356,25 +366,61 @@ export class JadeRpc {
     }
 
     /**
+     * List the multisig wallets currently registered on the device, keyed by
+     * name. Each value is Jade's summary record
+     * (`{ variant, sorted, threshold, num_signers, master_blinding_key }`);
+     * use {@link getRegisteredMultisig} for a name's full descriptor (with
+     * per-cosigner details). Device-global — not network-scoped.
+     *
+     * @returns {Promise<Record<string, object>>}
+     */
+    async getRegisteredMultisigs() {
+        const reply = await this._call("get_registered_multisigs");
+        return reply.result || {};
+    }
+
+    /**
+     * Read back the full registration for `name`, including the descriptor and
+     * its per-cosigner `signers` (fingerprint/derivation/xpub/path). Lets a
+     * caller **verify** what the device actually holds against an expected
+     * federation descriptor instead of trusting a host-supplied one.
+     *
+     * @param {string} name 1..15 ASCII chars.
+     * @returns {Promise<{ multisig_name: string, descriptor: object }>}
+     */
+    async getRegisteredMultisig(name) {
+        assertMultisigName(name);
+        const reply = await this._call("get_registered_multisig", {
+            multisig_name: name,
+        });
+        return reply.result;
+    }
+
+    /**
      * Register a multisig wallet on the device. Accepts either the
      * "multisig_file" form (a Coldcard/Sparrow-style text export, as a
      * `string`) or the "descriptor object" form (a plain JS object that
      * maps directly onto Jade's `params.descriptor` CBOR map). The user
      * must physically confirm the registration on the Jade screen.
-     * Idempotent under the same `(name, content)` pair; differing
-     * content under the same name overwrites.
+     *
+     * **Overwrite protection (default):** Jade silently overwrites a same-name
+     * registration whose content differs, which a hostile host can abuse to
+     * swap in an attacker-cosigner descriptor. To prevent that, this refuses to
+     * register when a wallet of the same `name` already exists unless
+     * `allowOverwrite: true` is passed explicitly. Callers following the
+     * register-once + verify-stored pattern should read back with
+     * {@link getRegisteredMultisig} and only register when absent.
      *
      * @param {string} network
      * @param {string} name 1..15 ASCII chars.
      * @param {string | object} fileOrDescriptor
+     * @param {{ allowOverwrite?: boolean }} [options] set `allowOverwrite: true`
+     *        to deliberately replace an existing same-name registration.
      */
-    async registerMultisig(network, name, fileOrDescriptor) {
+    async registerMultisig(network, name, fileOrDescriptor, options = {}) {
         assertNetwork(network);
-        if (typeof name !== "string" || name.length === 0 || name.length >= 16) {
-            throw new Error(
-                `Jade: multisig name must be 1..15 ASCII chars (got ${JSON.stringify(name)})`,
-            );
-        }
+        assertMultisigName(name);
+        const { allowOverwrite = false } = options;
         const params = { network, multisig_name: name };
         if (typeof fileOrDescriptor === "string") {
             params.multisig_file = fileOrDescriptor;
@@ -384,6 +430,16 @@ export class JadeRpc {
             throw new TypeError(
                 "registerMultisig: fileOrDescriptor must be a string or object",
             );
+        }
+        if (!allowOverwrite) {
+            const existing = await this.getRegisteredMultisigs();
+            if (existing && Object.prototype.hasOwnProperty.call(existing, name)) {
+                throw new Error(
+                    `Jade: a multisig named "${name}" is already registered; ` +
+                        `refusing to overwrite it silently. Pass ` +
+                        `{ allowOverwrite: true } to replace it deliberately.`,
+                );
+            }
         }
         await this._call("register_multisig", params);
     }

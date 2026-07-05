@@ -124,6 +124,102 @@ test("signPsbt requires a Uint8Array", async () => {
   await jade.close();
 });
 
+test("getRegisteredMultisigs returns the device's name→summary map", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  const summary = { "Fed-v1": { variant: "wsh(multi(k))", sorted: true, threshold: 2, num_signers: 3 } };
+  port.onWrite((bytes, respond) => {
+    const { value: req } = decode(bytes);
+    if (req.method === "get_registered_multisigs") respond(encode({ id: req.id, result: summary }));
+  });
+  assert.deepEqual(await jade.getRegisteredMultisigs(), summary);
+  await jade.close();
+});
+
+test("getRegisteredMultisig reads back a name's full descriptor", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  const details = {
+    multisig_name: "Fed-v1",
+    descriptor: { variant: "wsh(multi(k))", sorted: true, threshold: 2, signers: [] },
+  };
+  port.onWrite((bytes, respond) => {
+    const { value: req } = decode(bytes);
+    if (req.method === "get_registered_multisig") {
+      assert.equal(req.params.multisig_name, "Fed-v1");
+      respond(encode({ id: req.id, result: details }));
+    }
+  });
+  assert.deepEqual(await jade.getRegisteredMultisig("Fed-v1"), details);
+  await jade.close();
+});
+
+test("getRegisteredMultisig rejects an out-of-range name before the wire", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  await assert.rejects(() => jade.getRegisteredMultisig(""), /1\.\.15 ASCII/);
+  await assert.rejects(() => jade.getRegisteredMultisig("x".repeat(16)), /1\.\.15 ASCII/);
+  assert.equal(port.written.length, 0, "nothing should have been written");
+  await jade.close();
+});
+
+test("registerMultisig registers when no same-name wallet exists", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  let registered = false;
+  port.onWrite((bytes, respond) => {
+    const { value: req } = decode(bytes);
+    if (req.method === "get_registered_multisigs") respond(encode({ id: req.id, result: {} }));
+    else if (req.method === "register_multisig") { registered = true; respond(encode({ id: req.id, result: true })); }
+  });
+  await jade.registerMultisig("testnet", "Fed-v1", { variant: "wsh(multi(k))", sorted: true, threshold: 2, signers: [] });
+  assert.ok(registered, "register_multisig should have been sent");
+  await jade.close();
+});
+
+test("registerMultisig refuses to silently overwrite an existing same-name wallet", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  let registerSent = false;
+  port.onWrite((bytes, respond) => {
+    const { value: req } = decode(bytes);
+    if (req.method === "get_registered_multisigs") respond(encode({ id: req.id, result: { "Fed-v1": { threshold: 2 } } }));
+    else if (req.method === "register_multisig") { registerSent = true; respond(encode({ id: req.id, result: true })); }
+  });
+  await assert.rejects(
+    () => jade.registerMultisig("testnet", "Fed-v1", { variant: "wsh(multi(k))", sorted: true, threshold: 2, signers: [] }),
+    /already registered/,
+  );
+  assert.equal(registerSent, false, "must not send register_multisig on a refused overwrite");
+  await jade.close();
+});
+
+test("registerMultisig overwrites an existing wallet when allowOverwrite is set", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  let registerSent = false;
+  let readBack = false;
+  port.onWrite((bytes, respond) => {
+    const { value: req } = decode(bytes);
+    if (req.method === "get_registered_multisigs") { readBack = true; respond(encode({ id: req.id, result: { "Fed-v1": { threshold: 2 } } })); }
+    else if (req.method === "register_multisig") { registerSent = true; respond(encode({ id: req.id, result: true })); }
+  });
+  await jade.registerMultisig(
+    "testnet", "Fed-v1", { variant: "wsh(multi(k))", sorted: true, threshold: 2, signers: [] },
+    { allowOverwrite: true },
+  );
+  assert.ok(registerSent, "register_multisig should have been sent");
+  assert.equal(readBack, false, "allowOverwrite should skip the existence read-back");
+  await jade.close();
+});
+
+test("registerMultisig requires a string or object descriptor", async () => {
+  const port = makeMockPort();
+  const jade = new JadeRpc(port);
+  await assert.rejects(() => jade.registerMultisig("testnet", "Fed-v1", 123, { allowOverwrite: true }), /string or object/);
+  await jade.close();
+});
+
 test("close() is idempotent", async () => {
   const port = makeMockPort();
   const jade = new JadeRpc(port);
